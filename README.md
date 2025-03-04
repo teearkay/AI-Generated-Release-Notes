@@ -1,6 +1,6 @@
 # AI-Generated-Release-Notes
 
-During my time at Microsoft, I developed a personal project that reduced the manual effort for generating release notes by approximately 70%.
+During my time at Microsoft, I was hacking around on automations that leverage GenAI which led to this personal project that ended up reducing the time taken for generating release notes by approximately 70% for our product's release management team at Microsoft. We're now rapidly expanding this to other teams and products.
 
 This solution extracts work item data from an Azure DevOps query—a popular method for tracking items in every release—and automatically generates release notes in Markdown format (see: [Results](#results)).
 
