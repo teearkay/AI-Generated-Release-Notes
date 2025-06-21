@@ -4,7 +4,9 @@ During my time at Microsoft, I was hacking around on automations that leverage G
 
 This solution extracts work item data from an Azure DevOps query—a popular method for tracking items in every release—and automatically generates release notes in Markdown format (see: [Results](#results)).
 
-The repository contains the source code for an Azure Durable Function App that exposes APIs encapsulating the release note generation logic. A PowerAutomate workflow invokes these APIs to orchestrate the overall process (see: [High Level Architecture](#high-level-architecture)).
+The repository contains the source code for an Azure Durable Function App that exposes APIs encapsulating the release note generation logic. See [Readme](./release-notes-app/README.md) to get started!
+
+A PowerAutomate workflow invokes these APIs to orchestrate the overall process (see: [High Level Architecture](#high-level-architecture)).
 
 The solution leverages a prompt-chained framework to process input data at various stages (see: [Low Level Architecture](#low-level-architecture)). Additionally, retrieval-augmented generation is employed to perform semantic searches on public product documentation, ensuring that the output is aligned with the language familiar to customers.
 
