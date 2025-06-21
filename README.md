@@ -6,6 +6,8 @@ This solution extracts work item data from an Azure DevOps query—a popular met
 
 The repository contains the source code for an Azure Durable Function App that exposes APIs encapsulating the release note generation logic. See [Readme](./release-notes-app/README.md) to get started!
 
+To use this solution for your team (under Microsoft tenant) follow the [Onboarding Guide](./release-notes-app/Onboarding/README.md).
+
 A PowerAutomate workflow invokes these APIs to orchestrate the overall process (see: [High Level Architecture](#high-level-architecture)).
 
 The solution leverages a prompt-chained framework to process input data at various stages (see: [Low Level Architecture](#low-level-architecture)). Additionally, retrieval-augmented generation is employed to perform semantic searches on public product documentation, ensuring that the output is aligned with the language familiar to customers.
