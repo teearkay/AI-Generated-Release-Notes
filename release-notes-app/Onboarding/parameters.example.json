@@ -1,0 +1,30 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentParameters.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "devOpsOrganization": {
+            "value": "YOUR_DEVOPS_ORG_NAME"
+        },
+        "devOpsProject": {
+            "value": "YOUR_DEVOPS_PROJECT_NAME"
+        },
+        "emailRecipients": {
+            "value": "user1@yourcompany.com; user2@yourcompany.com"
+        },
+        "sharePointSiteUrl": {
+            "value": "https://yourcompany.sharepoint.com/sites/yoursite"
+        },
+        "workflows_ReleaseNotesGeneration_Sophia_SRA_name": {
+            "value": "ReleaseNotesGeneration-Sophia-SRA"
+        },
+        "sharePointFolderPath": {
+            "value": "/Shared Documents/Release Note Generation"
+        },
+        "singleWorkItemSemanticConfig": {
+            "value": "rag-sophia-sra-semantic-configuration"
+        },
+        "finalReleaseNotesSemanticConfig": {
+            "value": "product-docs-semantic-config"
+        }
+    }
+}

@@ -1,0 +1,1753 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "workflows_ReleaseNotesGeneration_Sophia_SRA_name": {
+            "defaultValue": "ReleaseNotesGeneration-Sophia-SRA",
+            "type": "String"
+        },
+        "location": {
+            "defaultValue": "[resourceGroup().location]",
+            "type": "String",
+            "metadata": {
+                "description": "Location for all resources"
+            }
+        },
+        "subscriptionId": {
+            "defaultValue": "[subscription().subscriptionId]",
+            "type": "String",
+            "metadata": {
+                "description": "Subscription ID for the deployment"
+            }
+        },
+        "resourceGroupName": {
+            "defaultValue": "[resourceGroup().name]",
+            "type": "String",
+            "metadata": {
+                "description": "Resource group name for the deployment"
+            }
+        },
+        "userAssignedIdentityName": {
+            "defaultValue": "ReleaseNotesGenerationIdentity",
+            "type": "String",
+            "metadata": {
+                "description": "Name of the user assigned managed identity"
+            }
+        },
+        "functionAppEndpoint": {
+            "defaultValue": "https://releasenotegeneratorapp-mi.azurewebsites.net",
+            "type": "String",
+            "metadata": {
+                "description": "Function app endpoint hostname"
+            }
+        },
+        "devOpsOrganization": {
+            "defaultValue": "dynamicscrm",
+            "type": "String",
+            "metadata": {
+                "description": "Azure DevOps organization name"
+            }
+        },
+        "devOpsProject": {
+            "defaultValue": "OneCRM",
+            "type": "String",
+            "metadata": {
+                "description": "Azure DevOps project name"
+            }
+        },
+        "emailRecipients": {
+            "defaultValue": "tkishnani@microsoft.com; bkhetharpal@microsoft.com",
+            "type": "String",
+            "metadata": {
+                "description": "Email recipients for notifications (semicolon separated)"
+            }
+        },
+        "sharePointSiteUrl": {
+            "defaultValue": "https://microsoft.sharepoint.com/teams/omnichannel53",
+            "type": "String",
+            "metadata": {
+                "description": "SharePoint site URL for document storage"
+            }
+        },
+        "sharePointFolderPath": {
+            "defaultValue": "/Shared Documents/Release Note Generation",
+            "type": "String",
+            "metadata": {
+                "description": "SharePoint folder path for storing release notes"
+            }
+        },
+        "singleWorkItemSemanticConfig": {
+            "defaultValue": "",
+            "type": "String",
+            "metadata": {
+                "description": "Semantic configuration name for single work item processing"
+            }
+        },
+        "finalReleaseNotesSemanticConfig": {
+            "defaultValue": "product-docs-semantic-config",
+            "type": "String",
+            "metadata": {
+                "description": "Semantic configuration name for final release notes generation"
+            }
+        },
+        "userAssignedIdentities_ReleaseNotesGenerationIdentity_externalid": {
+            "defaultValue": "/subscriptions/7da41661-fb51-45ba-b8f2-b4c136cb904b/resourceGroups/Automated-ReleaseNotes/providers/Microsoft.ManagedIdentity/userAssignedIdentities/ReleaseNotesGenerationIdentity",
+            "type": "String"
+        },
+        "connections_visualstudioteamservices_2_externalid": {
+            "defaultValue": "[resourceId('Microsoft.Web/connections', 'visualstudioteamservices-2')]",
+            "type": "String"
+        },
+        "connections_office365_externalid": {
+            "defaultValue": "[resourceId('Microsoft.Web/connections', 'office365')]",
+            "type": "String"
+        },
+        "connections_sharepointonline_externalid": {
+            "defaultValue": "[resourceId('Microsoft.Web/connections', 'sharepointonline')]",
+            "type": "String"
+        }
+    },
+    "variables": {},
+    "resources": [
+        {
+            "type": "Microsoft.Web/connections",
+            "apiVersion": "2016-06-01",
+            "name": "visualstudioteamservices-2",
+            "location": "[parameters('location')]",
+            "properties": {
+                "displayName": "Azure DevOps",
+                "customParameterValues": {},
+                "api": {
+                    "id": "[format('/subscriptions/{0}/providers/Microsoft.Web/locations/{1}/managedApis/visualstudioteamservices', subscription().subscriptionId, parameters('location'))]"
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Web/connections",
+            "apiVersion": "2016-06-01",
+            "name": "office365",
+            "location": "[parameters('location')]",
+            "properties": {
+                "displayName": "Office 365 Outlook",
+                "customParameterValues": {},
+                "api": {
+                    "id": "[format('/subscriptions/{0}/providers/Microsoft.Web/locations/{1}/managedApis/office365', subscription().subscriptionId, parameters('location'))]"
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Web/connections",
+            "apiVersion": "2016-06-01",
+            "name": "sharepointonline",
+            "location": "[parameters('location')]",
+            "properties": {
+                "displayName": "SharePoint",
+                "customParameterValues": {},
+                "api": {
+                    "id": "[format('/subscriptions/{0}/providers/Microsoft.Web/locations/{1}/managedApis/sharepointonline', subscription().subscriptionId, parameters('location'))]"
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Logic/workflows",
+            "apiVersion": "2017-07-01",
+            "name": "[parameters('workflows_ReleaseNotesGeneration_Sophia_SRA_name')]",
+            "location": "[parameters('location')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Web/connections', 'visualstudioteamservices-2')]",
+                "[resourceId('Microsoft.Web/connections', 'office365')]",
+                "[resourceId('Microsoft.Web/connections', 'sharepointonline')]"
+            ],
+            "identity": {
+                "type": "SystemAssigned, UserAssigned",
+                "userAssignedIdentities": {
+                    "[parameters('userAssignedIdentities_ReleaseNotesGenerationIdentity_externalid')]": {}
+                }
+            },
+            "properties": {
+                "state": "Enabled",
+                "definition": {
+                    "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+                    "contentVersion": "1.0.0.0",
+                    "parameters": {
+                        "OutputFileName": {
+                            "defaultValue": "DefaultFileName",
+                            "type": "String"
+                        },
+                        "WorkItemQuery": {
+                            "defaultValue": "00000000-0000-0000-0000-000000000000",
+                            "type": "String"
+                        },
+                        "$connections": {
+                            "defaultValue": {},
+                            "type": "Object"
+                        }
+                    },
+                    "triggers": {
+                        "Recurrence": {
+                            "recurrence": {
+                                "interval": 12,
+                                "frequency": "Month"
+                            },
+                            "evaluatedRecurrence": {
+                                "interval": 12,
+                                "frequency": "Month"
+                            },
+                            "type": "Recurrence"
+                        }
+                    },
+                    "actions": {
+                        "Fetch_All_Workitems_From_QueryId": {
+                            "runAfter": {
+                                "Initialize_FunctionApp_Audience": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "ApiConnection",
+                            "inputs": {
+                                "host": {
+                                    "connection": {
+                                        "name": "@parameters('$connections')['visualstudioteamservices-2']['connectionId']"
+                                    }
+                                },
+                                "method": "get",
+                                "path": "[format('/v2/@{{encodeURIComponent(''{0}'')}}/queryResults/@{{encodeURIComponent(variables(''workitemquery''))}}', parameters('devOpsProject'))]",
+                                "queries": {
+                                    "account": "[parameters('devOpsOrganization')]",
+                                    "workItemsCount": 200
+                                }
+                            }
+                        },
+                        "[INPUT]_Work_Item_Query": {
+                            "runAfter": {
+                                "[INPUT]_Release_Number": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "InitializeVariable",
+                            "inputs": {
+                                "variables": [
+                                    {
+                                        "name": "workitemquery",
+                                        "type": "string",
+                                        "value": "@{parameters('WorkItemQuery')}"
+                                    }
+                                ]
+                            }
+                        },
+                        "Comments_Temp_Object": {
+                            "runAfter": {
+                                "[INPUT]_Work_Item_Query": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "InitializeVariable",
+                            "inputs": {
+                                "variables": [
+                                    {
+                                        "name": "CommentsTemp",
+                                        "type": "array",
+                                        "value": []
+                                    }
+                                ]
+                            }
+                        },
+                        "Workitem_Output": {
+                            "runAfter": {
+                                "Comments_Temp_Object": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "InitializeVariable",
+                            "inputs": {
+                                "variables": [
+                                    {
+                                        "name": "Workitem Details",
+                                        "type": "object"
+                                    }
+                                ]
+                            }
+                        },
+                        "LLMSummaryTemp": {
+                            "runAfter": {
+                                "Workitem_Output": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "InitializeVariable",
+                            "inputs": {
+                                "variables": [
+                                    {
+                                        "name": "LLMOutput",
+                                        "type": "object"
+                                    }
+                                ]
+                            }
+                        },
+                        "WorkItemCommentsURLTemp": {
+                            "runAfter": {
+                                "LLMSummaryTemp": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "InitializeVariable",
+                            "inputs": {
+                                "variables": [
+                                    {
+                                        "name": "WorkItemCommentsURL",
+                                        "type": "string"
+                                    }
+                                ]
+                            }
+                        },
+                        "Results": {
+                            "runAfter": {
+                                "WorkItemCommentsURLTemp": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "InitializeVariable",
+                            "inputs": {
+                                "variables": [
+                                    {
+                                        "name": "Results",
+                                        "type": "array"
+                                    }
+                                ]
+                            }
+                        },
+                        "CompletionFlag": {
+                            "runAfter": {
+                                "Results": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "InitializeVariable",
+                            "inputs": {
+                                "variables": [
+                                    {
+                                        "name": "CompletionFlag",
+                                        "type": "boolean",
+                                        "value": false
+                                    }
+                                ]
+                            }
+                        },
+                        "LLM_Content": {
+                            "runAfter": {
+                                "CompletionFlag": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "InitializeVariable",
+                            "inputs": {
+                                "variables": [
+                                    {
+                                        "name": "LLMContent",
+                                        "type": "string"
+                                    }
+                                ]
+                            }
+                        },
+                        "Initialize_variable_2": {
+                            "runAfter": {
+                                "LLM_Content": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "InitializeVariable",
+                            "inputs": {
+                                "variables": [
+                                    {
+                                        "name": "LLMHTTPClientOptions",
+                                        "type": "object"
+                                    }
+                                ]
+                            }
+                        },
+                        "Test_Query": {
+                            "runAfter": {
+                                "Initialize_variable_2": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "InitializeVariable",
+                            "inputs": {
+                                "variables": [
+                                    {
+                                        "name": "testquery",
+                                        "type": "string",
+                                        "value": "35fdde72-5e19-4496-ae19-51032847d285"
+                                    }
+                                ]
+                            }
+                        },
+                        "search_key": {
+                            "runAfter": {
+                                "Test_Query": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "InitializeVariable",
+                            "inputs": {
+                                "variables": [
+                                    {
+                                        "name": "search_key",
+                                        "type": "string"
+                                    }
+                                ]
+                            }
+                        },
+                        "Result_Strings_md": {
+                            "runAfter": {
+                                "search_key": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "InitializeVariable",
+                            "inputs": {
+                                "variables": [
+                                    {
+                                        "name": "resultstrings",
+                                        "type": "array"
+                                    }
+                                ]
+                            }
+                        },
+                        "input_workitems": {
+                            "runAfter": {
+                                "Result_Strings_md": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "InitializeVariable",
+                            "inputs": {
+                                "variables": [
+                                    {
+                                        "name": "input_workitems",
+                                        "type": "array"
+                                    }
+                                ]
+                            }
+                        },
+                        "cleaned_repro_steps": {
+                            "runAfter": {
+                                "input_workitems": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "InitializeVariable",
+                            "inputs": {
+                                "variables": [
+                                    {
+                                        "name": "cleanedreprosteps",
+                                        "type": "string"
+                                    }
+                                ]
+                            }
+                        },
+                        "Release_Note_Function_App_Endpoint": {
+                            "runAfter": {
+                                "cleaned_repro_steps": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "InitializeVariable",
+                            "inputs": {
+                                "variables": [
+                                    {
+                                        "name": "relnotefuncappendpoint",
+                                        "type": "string",
+                                        "value": "[format('{0}/api/orchestrators/release_note_orchestrator', parameters('functionAppEndpoint'))]"
+                                    }
+                                ]
+                            }
+                        },
+                        "Clean_HTML_Function_Endpoint": {
+                            "runAfter": {
+                                "Release_Note_Function_App_Endpoint": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "InitializeVariable",
+                            "inputs": {
+                                "variables": [
+                                    {
+                                        "name": "cleanhtmlendpoint",
+                                        "type": "string",
+                                        "value": "[format('{0}/api/clean-html', parameters('functionAppEndpoint'))]"
+                                    }
+                                ]
+                            }
+                        },
+                        "ReleaseNotes": {
+                            "runAfter": {
+                                "Clean_HTML_Function_Endpoint": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "InitializeVariable",
+                            "inputs": {
+                                "variables": [
+                                    {
+                                        "name": "releasenotes",
+                                        "type": "array"
+                                    }
+                                ]
+                            }
+                        },
+                        "Generate_Release_Notes_For_Each_Workitem": {
+                            "foreach": "@body('Fetch_All_Workitems_From_QueryId')?['value']",
+                            "actions": {
+                                "Get_Workitem_Details_From_Devops": {
+                                    "actions": {
+                                        "Set_CompletionFlag_false": {
+                                            "type": "SetVariable",
+                                            "inputs": {
+                                                "name": "CompletionFlag",
+                                                "value": false
+                                            }
+                                        },
+                                        "Parse_WorkItem_Json": {
+                                            "runAfter": {
+                                                "Set_CompletionFlag_false": [
+                                                    "Succeeded"
+                                                ]
+                                            },
+                                            "type": "ParseJson",
+                                            "inputs": {
+                                                "content": "@items('Generate_Release_Notes_For_Each_Workitem')",
+                                                "schema": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "System.Id": {
+                                                            "type": "integer"
+                                                        },
+                                                        "System.WorkItemType": {
+                                                            "type": "string"
+                                                        },
+                                                        "System.State": {
+                                                            "type": "string"
+                                                        },
+                                                        "System.AssignedTo": {
+                                                            "type": "string"
+                                                        },
+                                                        "System.Title": {
+                                                            "type": "string"
+                                                        },
+                                                        "System.Tags": {
+                                                            "type": "string"
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        "Parse_JSON_": {
+                                            "runAfter": {
+                                                "Fetch_Work_Item_Details": [
+                                                    "Succeeded"
+                                                ]
+                                            },
+                                            "type": "ParseJson",
+                                            "inputs": {
+                                                "content": "@body('Fetch_Work_Item_Details')",
+                                                "schema": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "id": {
+                                                            "type": "integer"
+                                                        },
+                                                        "rev": {
+                                                            "type": "integer"
+                                                        },
+                                                        "fields": {
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "System.Id": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "System.AreaId": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "System.AreaPath": {
+                                                                    "type": "string"
+                                                                },
+                                                                "System.TeamProject": {
+                                                                    "type": "string"
+                                                                },
+                                                                "System.NodeName": {
+                                                                    "type": "string"
+                                                                },
+                                                                "System.AreaLevel1": {
+                                                                    "type": "string"
+                                                                },
+                                                                "System.AreaLevel2": {
+                                                                    "type": "string"
+                                                                },
+                                                                "System.AreaLevel3": {
+                                                                    "type": "string"
+                                                                },
+                                                                "System.AreaLevel4": {
+                                                                    "type": "string"
+                                                                },
+                                                                "System.AreaLevel5": {
+                                                                    "type": "string"
+                                                                },
+                                                                "System.AreaLevel6": {
+                                                                    "type": "string"
+                                                                },
+                                                                "System.Rev": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "System.AuthorizedDate": {
+                                                                    "type": "string"
+                                                                },
+                                                                "System.RevisedDate": {
+                                                                    "type": "string"
+                                                                },
+                                                                "System.IterationId": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "System.IterationPath": {
+                                                                    "type": "string"
+                                                                },
+                                                                "System.IterationLevel1": {
+                                                                    "type": "string"
+                                                                },
+                                                                "System.IterationLevel2": {
+                                                                    "type": "string"
+                                                                },
+                                                                "System.IterationLevel3": {
+                                                                    "type": "string"
+                                                                },
+                                                                "System.IterationLevel4": {
+                                                                    "type": "string"
+                                                                },
+                                                                "System.WorkItemType": {
+                                                                    "type": "string"
+                                                                },
+                                                                "System.State": {
+                                                                    "type": "string"
+                                                                },
+                                                                "System.Reason": {
+                                                                    "type": "string"
+                                                                },
+                                                                "System.AssignedTo": {
+                                                                    "type": "object",
+                                                                    "properties": {
+                                                                        "displayName": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "url": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "_links": {
+                                                                            "type": "object",
+                                                                            "properties": {
+                                                                                "avatar": {
+                                                                                    "type": "object",
+                                                                                    "properties": {
+                                                                                        "href": {
+                                                                                            "type": "string"
+                                                                                        }
+                                                                                    }
+                                                                                }
+                                                                            }
+                                                                        },
+                                                                        "id": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "uniqueName": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "imageUrl": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "descriptor": {
+                                                                            "type": "string"
+                                                                        }
+                                                                    }
+                                                                },
+                                                                "System.CreatedDate": {
+                                                                    "type": "string"
+                                                                },
+                                                                "System.CreatedBy": {
+                                                                    "type": "object",
+                                                                    "properties": {
+                                                                        "displayName": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "url": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "_links": {
+                                                                            "type": "object",
+                                                                            "properties": {
+                                                                                "avatar": {
+                                                                                    "type": "object",
+                                                                                    "properties": {
+                                                                                        "href": {
+                                                                                            "type": "string"
+                                                                                        }
+                                                                                    }
+                                                                                }
+                                                                            }
+                                                                        },
+                                                                        "id": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "uniqueName": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "imageUrl": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "descriptor": {
+                                                                            "type": "string"
+                                                                        }
+                                                                    }
+                                                                },
+                                                                "System.ChangedDate": {
+                                                                    "type": "string"
+                                                                },
+                                                                "System.ChangedBy": {
+                                                                    "type": "object",
+                                                                    "properties": {
+                                                                        "displayName": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "url": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "_links": {
+                                                                            "type": "object",
+                                                                            "properties": {
+                                                                                "avatar": {
+                                                                                    "type": "object",
+                                                                                    "properties": {
+                                                                                        "href": {
+                                                                                            "type": "string"
+                                                                                        }
+                                                                                    }
+                                                                                }
+                                                                            }
+                                                                        },
+                                                                        "id": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "uniqueName": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "imageUrl": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "descriptor": {
+                                                                            "type": "string"
+                                                                        }
+                                                                    }
+                                                                },
+                                                                "System.AuthorizedAs": {
+                                                                    "type": "object",
+                                                                    "properties": {
+                                                                        "displayName": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "url": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "_links": {
+                                                                            "type": "object",
+                                                                            "properties": {
+                                                                                "avatar": {
+                                                                                    "type": "object",
+                                                                                    "properties": {
+                                                                                        "href": {
+                                                                                            "type": "string"
+                                                                                        }
+                                                                                    }
+                                                                                }
+                                                                            }
+                                                                        },
+                                                                        "id": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "uniqueName": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "imageUrl": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "descriptor": {
+                                                                            "type": "string"
+                                                                        }
+                                                                    }
+                                                                },
+                                                                "System.PersonId": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "System.Watermark": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "System.CommentCount": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "System.Title": {
+                                                                    "type": "string"
+                                                                },
+                                                                "Microsoft.VSTS.Common.ClosedDate": {
+                                                                    "type": "string"
+                                                                },
+                                                                "Microsoft.VSTS.Common.Severity": {
+                                                                    "type": "string"
+                                                                },
+                                                                "Microsoft.VSTS.Common.ClosedBy": {
+                                                                    "type": "object",
+                                                                    "properties": {
+                                                                        "displayName": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "url": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "_links": {
+                                                                            "type": "object",
+                                                                            "properties": {
+                                                                                "avatar": {
+                                                                                    "type": "object",
+                                                                                    "properties": {
+                                                                                        "href": {
+                                                                                            "type": "string"
+                                                                                        }
+                                                                                    }
+                                                                                }
+                                                                            }
+                                                                        },
+                                                                        "id": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "uniqueName": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "imageUrl": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "descriptor": {
+                                                                            "type": "string"
+                                                                        }
+                                                                    }
+                                                                },
+                                                                "Microsoft.VSTS.Common.Priority": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "Microsoft.VSTS.Common.StateChangeDate": {
+                                                                    "type": "string"
+                                                                },
+                                                                "Microsoft.VSTS.Common.ActivatedDate": {
+                                                                    "type": "string"
+                                                                },
+                                                                "Microsoft.VSTS.Common.ActivatedBy": {
+                                                                    "type": "object",
+                                                                    "properties": {
+                                                                        "displayName": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "url": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "_links": {
+                                                                            "type": "object",
+                                                                            "properties": {
+                                                                                "avatar": {
+                                                                                    "type": "object",
+                                                                                    "properties": {
+                                                                                        "href": {
+                                                                                            "type": "string"
+                                                                                        }
+                                                                                    }
+                                                                                }
+                                                                            }
+                                                                        },
+                                                                        "id": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "uniqueName": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "imageUrl": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "descriptor": {
+                                                                            "type": "string"
+                                                                        }
+                                                                    }
+                                                                },
+                                                                "Microsoft.VSTS.Common.ResolvedDate": {
+                                                                    "type": "string"
+                                                                },
+                                                                "Microsoft.VSTS.Common.ResolvedBy": {
+                                                                    "type": "object",
+                                                                    "properties": {
+                                                                        "displayName": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "url": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "_links": {
+                                                                            "type": "object",
+                                                                            "properties": {
+                                                                                "avatar": {
+                                                                                    "type": "object",
+                                                                                    "properties": {
+                                                                                        "href": {
+                                                                                            "type": "string"
+                                                                                        }
+                                                                                    }
+                                                                                }
+                                                                            }
+                                                                        },
+                                                                        "id": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "uniqueName": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "imageUrl": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "descriptor": {
+                                                                            "type": "string"
+                                                                        }
+                                                                    }
+                                                                },
+                                                                "Microsoft.VSTS.Common.ResolvedReason": {
+                                                                    "type": "string"
+                                                                },
+                                                                "Microsoft.VSTS.Common.ValueArea": {
+                                                                    "type": "string"
+                                                                },
+                                                                "dynamicscrm.FPSScrum.ResolutionReason": {
+                                                                    "type": "string"
+                                                                },
+                                                                "CRMAgile.IsException": {
+                                                                    "type": "boolean"
+                                                                },
+                                                                "CRMAgile.Release": {
+                                                                    "type": "string"
+                                                                },
+                                                                "CPSAgile.SecurityRating": {
+                                                                    "type": "string"
+                                                                },
+                                                                "Custom.PublishExternally": {
+                                                                    "type": "boolean"
+                                                                },
+                                                                "Microsoft.VSTS.TCM.ReproSteps": {
+                                                                    "type": "string"
+                                                                },
+                                                                "System.Tags": {
+                                                                    "type": "string"
+                                                                }
+                                                            }
+                                                        },
+                                                        "relations": {
+                                                            "type": "array"
+                                                        },
+                                                        "_links": {
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "self": {
+                                                                    "type": "object",
+                                                                    "properties": {
+                                                                        "href": {
+                                                                            "type": "string"
+                                                                        }
+                                                                    }
+                                                                },
+                                                                "workItemUpdates": {
+                                                                    "type": "object",
+                                                                    "properties": {
+                                                                        "href": {
+                                                                            "type": "string"
+                                                                        }
+                                                                    }
+                                                                },
+                                                                "workItemRevisions": {
+                                                                    "type": "object",
+                                                                    "properties": {
+                                                                        "href": {
+                                                                            "type": "string"
+                                                                        }
+                                                                    }
+                                                                },
+                                                                "workItemComments": {
+                                                                    "type": "object",
+                                                                    "properties": {
+                                                                        "href": {
+                                                                            "type": "string"
+                                                                        }
+                                                                    }
+                                                                },
+                                                                "html": {
+                                                                    "type": "object",
+                                                                    "properties": {
+                                                                        "href": {
+                                                                            "type": "string"
+                                                                        }
+                                                                    }
+                                                                },
+                                                                "workItemType": {
+                                                                    "type": "object",
+                                                                    "properties": {
+                                                                        "href": {
+                                                                            "type": "string"
+                                                                        }
+                                                                    }
+                                                                },
+                                                                "fields": {
+                                                                    "type": "object",
+                                                                    "properties": {
+                                                                        "href": {
+                                                                            "type": "string"
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }
+                                                        },
+                                                        "url": {
+                                                            "type": "string"
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        "Extract_And_Clean_Repro_Steps_OR_Discussion": {
+                                            "actions": {
+                                                "CleanHTML": {
+                                                    "type": "Http",
+                                                    "inputs": {
+                                                        "uri": "@variables('cleanhtmlendpoint')",
+                                                        "method": "POST",
+                                                        "body": {
+                                                            "html": "@{body('Parse_JSON_')?['fields']?['Microsoft.VSTS.TCM.ReproSteps']}",
+                                                            "preserve_structure": false,
+                                                            "remove_attributes": true
+                                                        },
+                                                        "authentication": {
+                                                            "type": "ManagedServiceIdentity",
+                                                            "identity": "[parameters('userAssignedIdentities_ReleaseNotesGenerationIdentity_externalid')]",
+                                                            "audience": "@{variables('FunctonAppAudience')}"
+                                                        }
+                                                    },
+                                                    "runtimeConfiguration": {
+                                                        "contentTransfer": {
+                                                            "transferMode": "Chunked"
+                                                        }
+                                                    }
+                                                },
+                                                "Set_variable_2": {
+                                                    "runAfter": {
+                                                        "CleanHTML": [
+                                                            "Succeeded"
+                                                        ]
+                                                    },
+                                                    "type": "SetVariable",
+                                                    "inputs": {
+                                                        "name": "cleanedreprosteps",
+                                                        "value": "@body('CleanHTML')"
+                                                    }
+                                                }
+                                            },
+                                            "runAfter": {
+                                                "Parse_JSON_": [
+                                                    "Succeeded"
+                                                ]
+                                            },
+                                            "else": {
+                                                "actions": {
+                                                    "Set_variable_1": {
+                                                        "type": "SetVariable",
+                                                        "inputs": {
+                                                            "name": "cleanedreprosteps",
+                                                            "value": "@string('')"
+                                                        }
+                                                    }
+                                                }
+                                            },
+                                            "expression": {
+                                                "and": [
+                                                    {
+                                                        "equals": [
+                                                            "@body('Parse_JSON_')?['fields']?['Microsoft.VSTS.TCM.ReproSteps']",
+                                                            "@null"
+                                                        ]
+                                                    },
+                                                    {
+                                                        "not": {
+                                                            "equals": [
+                                                                "@empty(body('Parse_WorkItem_Json')?['fields']?['Microsoft.VSTS.TCM.ReproSteps'])",
+                                                                true
+                                                            ]
+                                                        }
+                                                    }
+                                                ]
+                                            },
+                                            "type": "If"
+                                        },
+                                        "Extract_Comment_Links_From_Workitem": {
+                                            "runAfter": {
+                                                "Extract_And_Clean_Repro_Steps_OR_Discussion": [
+                                                    "Succeeded"
+                                                ]
+                                            },
+                                            "type": "SetVariable",
+                                            "inputs": {
+                                                "name": "WorkItemCommentsURL",
+                                                "value": "@body('Parse_JSON_')?['_links']?['workItemComments']?['href']"
+                                            }
+                                        },
+                                        "Make_Devops_HTTP_Call_To_Get_Comments_From_Links": {
+                                            "runAfter": {
+                                                "Extract_Comment_Links_From_Workitem": [
+                                                    "Succeeded"
+                                                ]
+                                            },
+                                            "type": "ApiConnection",
+                                            "inputs": {
+                                                "host": {
+                                                    "connection": {
+                                                        "name": "@parameters('$connections')['visualstudioteamservices-2']['connectionId']"
+                                                    }
+                                                },
+                                                "method": "post",
+                                                "body": {
+                                                    "Method": "GET",
+                                                    "Uri": "@variables('WorkItemCommentsURL')"
+                                                },
+                                                "path": "/httprequest",
+                                                "queries": {
+                                                    "account": "[parameters('devOpsOrganization')]"
+                                                }
+                                            }
+                                        },
+                                        "Parse_JSON_2": {
+                                            "runAfter": {
+                                                "Make_Devops_HTTP_Call_To_Get_Comments_From_Links": [
+                                                    "Succeeded"
+                                                ]
+                                            },
+                                            "type": "ParseJson",
+                                            "inputs": {
+                                                "content": "@body('Make_Devops_HTTP_Call_To_Get_Comments_From_Links')",
+                                                "schema": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "totalCount": {
+                                                            "type": "integer"
+                                                        },
+                                                        "count": {
+                                                            "type": "integer"
+                                                        },
+                                                        "comments": {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "object",
+                                                                "properties": {
+                                                                    "mentions": {
+                                                                        "type": "array"
+                                                                    },
+                                                                    "workItemId": {
+                                                                        "type": "integer"
+                                                                    },
+                                                                    "id": {
+                                                                        "type": "integer"
+                                                                    },
+                                                                    "version": {
+                                                                        "type": "integer"
+                                                                    },
+                                                                    "text": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "createdBy": {
+                                                                        "type": "object",
+                                                                        "properties": {
+                                                                            "displayName": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "url": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "_links": {
+                                                                                "type": "object",
+                                                                                "properties": {
+                                                                                    "avatar": {
+                                                                                        "type": "object",
+                                                                                        "properties": {
+                                                                                            "href": {
+                                                                                                "type": "string"
+                                                                                            }
+                                                                                        }
+                                                                                    }
+                                                                                }
+                                                                            },
+                                                                            "id": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "uniqueName": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "imageUrl": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "descriptor": {
+                                                                                "type": "string"
+                                                                            }
+                                                                        }
+                                                                    },
+                                                                    "createdDate": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "modifiedBy": {
+                                                                        "type": "object",
+                                                                        "properties": {
+                                                                            "displayName": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "url": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "_links": {
+                                                                                "type": "object",
+                                                                                "properties": {
+                                                                                    "avatar": {
+                                                                                        "type": "object",
+                                                                                        "properties": {
+                                                                                            "href": {
+                                                                                                "type": "string"
+                                                                                            }
+                                                                                        }
+                                                                                    }
+                                                                                }
+                                                                            },
+                                                                            "id": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "uniqueName": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "imageUrl": {
+                                                                                "type": "string"
+                                                                            },
+                                                                            "descriptor": {
+                                                                                "type": "string"
+                                                                            }
+                                                                        }
+                                                                    },
+                                                                    "modifiedDate": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "format": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "renderedText": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "url": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "mentions",
+                                                                    "workItemId",
+                                                                    "id",
+                                                                    "version",
+                                                                    "text",
+                                                                    "createdBy",
+                                                                    "createdDate",
+                                                                    "modifiedBy",
+                                                                    "modifiedDate",
+                                                                    "format",
+                                                                    "renderedText",
+                                                                    "url"
+                                                                ]
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        "Extract_Comments": {
+                                            "foreach": "@body('Parse_JSON_2')?['comments']",
+                                            "actions": {
+                                                "Parse_JSON_3": {
+                                                    "type": "ParseJson",
+                                                    "inputs": {
+                                                        "content": "@items('Extract_Comments')",
+                                                        "schema": {
+                                                            "type": "object",
+                                                            "properties": {
+                                                                "mentions": {
+                                                                    "type": "array"
+                                                                },
+                                                                "workItemId": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "id": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "version": {
+                                                                    "type": "integer"
+                                                                },
+                                                                "text": {
+                                                                    "type": "string"
+                                                                },
+                                                                "createdBy": {
+                                                                    "type": "object",
+                                                                    "properties": {
+                                                                        "displayName": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "url": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "_links": {
+                                                                            "type": "object",
+                                                                            "properties": {
+                                                                                "avatar": {
+                                                                                    "type": "object",
+                                                                                    "properties": {
+                                                                                        "href": {
+                                                                                            "type": "string"
+                                                                                        }
+                                                                                    }
+                                                                                }
+                                                                            }
+                                                                        },
+                                                                        "id": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "uniqueName": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "imageUrl": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "descriptor": {
+                                                                            "type": "string"
+                                                                        }
+                                                                    }
+                                                                },
+                                                                "createdDate": {
+                                                                    "type": "string"
+                                                                },
+                                                                "modifiedBy": {
+                                                                    "type": "object",
+                                                                    "properties": {
+                                                                        "displayName": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "url": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "_links": {
+                                                                            "type": "object",
+                                                                            "properties": {
+                                                                                "avatar": {
+                                                                                    "type": "object",
+                                                                                    "properties": {
+                                                                                        "href": {
+                                                                                            "type": "string"
+                                                                                        }
+                                                                                    }
+                                                                                }
+                                                                            }
+                                                                        },
+                                                                        "id": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "uniqueName": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "imageUrl": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "descriptor": {
+                                                                            "type": "string"
+                                                                        }
+                                                                    }
+                                                                },
+                                                                "modifiedDate": {
+                                                                    "type": "string"
+                                                                },
+                                                                "format": {
+                                                                    "type": "string"
+                                                                },
+                                                                "renderedText": {
+                                                                    "type": "string"
+                                                                },
+                                                                "url": {
+                                                                    "type": "string"
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                },
+                                                "Clean_HTML": {
+                                                    "runAfter": {
+                                                        "Parse_JSON_3": [
+                                                            "Succeeded"
+                                                        ]
+                                                    },
+                                                    "type": "Http",
+                                                    "inputs": {
+                                                        "uri": "@variables('cleanhtmlendpoint')",
+                                                        "method": "POST",
+                                                        "body": {
+                                                            "html": "@{body('Parse_JSON_3')?['text']}",
+                                                            "preserve_structure": false,
+                                                            "remove_attributes": true
+                                                        },
+                                                        "authentication": {
+                                                            "type": "ManagedServiceIdentity",
+                                                            "identity": "[parameters('userAssignedIdentities_ReleaseNotesGenerationIdentity_externalid')]",
+                                                            "audience": "@{variables('FunctonAppAudience')}"
+                                                        }
+                                                    },
+                                                    "runtimeConfiguration": {
+                                                        "contentTransfer": {
+                                                            "transferMode": "Chunked"
+                                                        }
+                                                    }
+                                                },
+                                                "Comments_Array": {
+                                                    "runAfter": {
+                                                        "Clean_HTML": [
+                                                            "Succeeded"
+                                                        ]
+                                                    },
+                                                    "type": "AppendToArrayVariable",
+                                                    "inputs": {
+                                                        "name": "CommentsTemp",
+                                                        "value": "@body('Clean_HTML')"
+                                                    }
+                                                }
+                                            },
+                                            "runAfter": {
+                                                "Parse_JSON_2": [
+                                                    "Succeeded"
+                                                ]
+                                            },
+                                            "type": "Foreach"
+                                        },
+                                        "Set_WorkItemDetail": {
+                                            "runAfter": {
+                                                "Extract_Comments": [
+                                                    "Succeeded"
+                                                ]
+                                            },
+                                            "type": "SetVariable",
+                                            "inputs": {
+                                                "name": "Workitem Details",
+                                                "value": {
+                                                    "Id": "@{body('Parse_JSON_')?['id']}",
+                                                    "Title": "@{body('Parse_JSON_')?['fields']?['System.Title']}",
+                                                    "AreaPath": "@{body('Parse_JSON_')?['fields']?['System.AreaPath']}",
+                                                    "Type": "@{body('Parse_JSON_')?['fields']?['System.WorkItemType']}",
+                                                    "ReproSteps": "@{variables('cleanedreprosteps')}",
+                                                    "Comments": "@{variables('CommentsTemp')}"
+                                                }
+                                            }
+                                        },
+                                        "Fetch_Work_Item_Details": {
+                                            "runAfter": {
+                                                "Parse_WorkItem_Json": [
+                                                    "Succeeded"
+                                                ]
+                                            },
+                                            "type": "ApiConnection",
+                                            "inputs": {
+                                                "host": {
+                                                    "connection": {
+                                                        "name": "@parameters('$connections')['visualstudioteamservices-2']['connectionId']"
+                                                    }
+                                                },
+                                                "method": "post",
+                                                "body": {
+                                                    "Method": "GET",
+                                                    "Uri": "[format('{0}/_apis/wit/workitems/@{{body(''Parse_WorkItem_Json'')?[''System.Id'']}}?$expand=all&api-version=7.1-preview.3', parameters('devOpsProject'))]"
+                                                },
+                                                "path": "/httprequest",
+                                                "queries": {
+                                                    "account": "[parameters('devOpsOrganization')]"
+                                                }
+                                            }
+                                        }
+                                    },
+                                    "type": "Scope"
+                                },
+                                "Log_Summary_": {
+                                    "actions": {
+                                        "Append_to_array_variable": {
+                                            "type": "AppendToArrayVariable",
+                                            "inputs": {
+                                                "name": "input_workitems",
+                                                "value": {
+                                                    "Id": "@{body('Parse_JSON_')?['id']}",
+                                                    "Details": "@{variables('Workitem Details')}"
+                                                }
+                                            }
+                                        }
+                                    },
+                                    "runAfter": {
+                                        "Generate_Note_For_Workitem": [
+                                            "Succeeded"
+                                        ]
+                                    },
+                                    "else": {
+                                        "actions": {}
+                                    },
+                                    "expression": {
+                                        "and": [
+                                            {
+                                                "equals": [
+                                                    "@variables('CompletionFlag')",
+                                                    true
+                                                ]
+                                            }
+                                        ]
+                                    },
+                                    "type": "If"
+                                },
+                                "Generate_Note_For_Workitem": {
+                                    "actions": {
+                                        "Set_CompletionFlag_To_True": {
+                                            "runAfter": {
+                                                "Cleanup_Temp_Variable": [
+                                                    "Succeeded"
+                                                ]
+                                            },
+                                            "type": "SetVariable",
+                                            "inputs": {
+                                                "name": "CompletionFlag",
+                                                "value": true
+                                            }
+                                        },
+                                        "Cleanup_Temp_Variable": {
+                                            "runAfter": {
+                                                "Add_to_release_notes_array": [
+                                                    "Succeeded"
+                                                ]
+                                            },
+                                            "type": "SetVariable",
+                                            "inputs": {
+                                                "name": "CommentsTemp",
+                                                "value": []
+                                            }
+                                        },
+                                        "Add_to_release_notes_array": {
+                                            "runAfter": {
+                                                "Generate_Single_Release_Note": [
+                                                    "Succeeded"
+                                                ]
+                                            },
+                                            "type": "AppendToArrayVariable",
+                                            "inputs": {
+                                                "name": "releasenotes",
+                                                "value": {
+                                                    "Id": "@{body('Parse_WorkItem_Json')?['System.Id']}",
+                                                    "Type": "@{body('Parse_WorkItem_Json')?['System.WorkItemType']}",
+                                                    "Title": "@{body('Parse_WorkItem_Json')?['System.Title']}",
+                                                    "ReleaseNote": "@{body('Generate_Single_Release_Note')['output']}"
+                                                }
+                                            }
+                                        },
+                                        "Generate_Single_Release_Note": {
+                                            "type": "Http",
+                                            "inputs": {
+                                                "uri": "@variables('relnotefuncappendpoint')",
+                                                "method": "POST",
+                                                "body": {
+                                                    "single": true,
+                                                    "payload": "@{variables('Workitem Details')}",
+                                                    "documentation": "[parameters('singleWorkItemSemanticConfig')]"
+                                                },
+                                                "authentication": {
+                                                    "type": "ManagedServiceIdentity",
+                                                    "identity": "[parameters('userAssignedIdentities_ReleaseNotesGenerationIdentity_externalid')]",
+                                                    "audience": "@{variables('FunctonAppAudience')}"
+                                                }
+                                            },
+                                            "runtimeConfiguration": {
+                                                "contentTransfer": {
+                                                    "transferMode": "Chunked"
+                                                }
+                                            }
+                                        }
+                                    },
+                                    "runAfter": {
+                                        "Get_Workitem_Details_From_Devops": [
+                                            "Succeeded"
+                                        ]
+                                    },
+                                    "type": "Scope"
+                                }
+                            },
+                            "runAfter": {
+                                "Fetch_All_Workitems_From_QueryId": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "Foreach"
+                        },
+                        "Send_an_email_(V2)": {
+                            "runAfter": {
+                                "Create_Final_Release_Note_Markdown_AND_Save_to_SharePoint": [
+                                    "Succeeded"
+                                ]
+                    },
+                            "type": "ApiConnection",
+                            "inputs": {
+                                "host": {
+                                    "connection": {
+                                        "name": "@parameters('$connections')['office365']['connectionId']"
+                                    }
+                                },
+                                "method": "post",
+                                "body": {
+                                    "To": "[parameters('emailRecipients')]",
+                                    "Subject": "Release Notes For @{parameters('OutputFileName')}",
+                                    "Body": "<p class=\"editor-paragraph\">File uploaded to sharepoint: Update_@{variables('outputfilename')}_@{replace(replace(string(body('Current_time')),':',''),'.','')}.md</p><br><p class=\"editor-paragraph\"><br>@{body('FInal_Release_Notes_Generation')['output']}</p>",
+                                    "Importance": "Normal"
+                                },
+                                "path": "/v2/Mail"
+                            }
+                        },
+                        "Initialize_FunctionApp_Audience": {
+                            "runAfter": {
+                                "ReleaseNotes": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "InitializeVariable",
+                            "inputs": {
+                                "variables": [
+                                    {
+                                        "name": "FunctonAppAudience",
+                                        "type": "string",
+                                        "value": "[format('{0}', parameters('functionAppEndpoint'))]"
+                                    }
+                                ]
+                            }
+                        },
+                        "[INPUT]_Release_Number": {
+                            "runAfter": {},
+                            "type": "InitializeVariable",
+                            "inputs": {
+                                "variables": [
+                                    {
+                                        "name": "outputfilename",
+                                        "type": "string",
+                                        "value": "@{parameters('OutputFileName')}"
+                                    }
+                                ]
+                            },
+                            "description": "Specify the output file name for the release notes file which will be generated in SharePoint. The current timestamp be suffixed automatically to the name for versioning."
+                        },
+                        "Create_Final_Release_Note_Markdown_AND_Save_to_SharePoint": {
+                            "actions": {
+                                "FInal_Release_Notes_Generation": {
+                                    "type": "Http",
+                                    "inputs": {
+                                        "uri": "@variables('relnotefuncappendpoint')",
+                                        "method": "POST",
+                                        "body": {
+                                            "single": false,
+                                            "payload": "@{variables('releasenotes')}",
+                                            "documentation": "[parameters('finalReleaseNotesSemanticConfig')]",
+                                            "use_internal_doc": true
+                                        },
+                                        "authentication": {
+                                            "type": "ManagedServiceIdentity",
+                                            "identity": "[parameters('userAssignedIdentities_ReleaseNotesGenerationIdentity_externalid')]",
+                                            "audience": "@{variables('FunctonAppAudience')}"
+                                        }
+                                    },
+                                    "runtimeConfiguration": {
+                                        "contentTransfer": {
+                                            "transferMode": "Chunked"
+                                        }
+                                    }
+                                },
+                                "Current_time": {
+                                    "runAfter": {
+                                        "FInal_Release_Notes_Generation": [
+                                            "Succeeded"
+                                        ]
+                                    },
+                                    "type": "Expression",
+                                    "kind": "CurrentTime",
+                                    "inputs": {}
+                                },
+                                "Upload_Release_Note_md_to_sharepoint": {
+                                    "runAfter": {
+                                        "Current_time": [
+                                            "Succeeded"
+                                        ]
+                                    },
+                                    "type": "ApiConnection",
+                                    "inputs": {
+                                        "host": {
+                                            "connection": {
+                                                "name": "@parameters('$connections')['sharepointonline']['connectionId']"
+                                            }
+                                        },
+                                        "method": "post",
+                                        "body": "@body('FInal_Release_Notes_Generation')['output']",
+                                        "path": "[format('/datasets/@{{encodeURIComponent(encodeURIComponent(''{0}''))}}/files', parameters('sharePointSiteUrl'))]",
+                                        "queries": {
+                                            "folderPath": "[parameters('sharePointFolderPath')]",
+                                            "name": "Update_@{variables('outputfilename')}_@{replace(replace(string(body('Current_time')),':',''),'.','')}.md",
+                                            "queryParametersSingleEncoded": true
+                                        }
+                                    },
+                                    "runtimeConfiguration": {
+                                        "contentTransfer": {
+                                            "transferMode": "Chunked"
+                                        }
+                                    }
+                                }
+                            },
+                            "runAfter": {
+                                "Generate_Release_Notes_For_Each_Workitem": [
+                                    "Succeeded"
+                                ]
+                            },
+                            "type": "Scope"
+                        }
+                    },
+                    "outputs": {}
+                },
+                "parameters": {
+                    "$connections": {
+                        "value": {
+                            "visualstudioteamservices-2": {
+                                "id": "[format('/subscriptions/{0}/providers/Microsoft.Web/locations/{1}/managedApis/visualstudioteamservices', subscription().subscriptionId, parameters('location'))]",
+                                "connectionId": "[parameters('connections_visualstudioteamservices_2_externalid')]",
+                                "connectionName": "visualstudioteamservices-2"
+                            },
+                            "office365": {
+                                "id": "[format('/subscriptions/{0}/providers/Microsoft.Web/locations/{1}/managedApis/office365', subscription().subscriptionId, parameters('location'))]",
+                                "connectionId": "[parameters('connections_office365_externalid')]",
+                                "connectionName": "office365"
+                            },
+                            "sharepointonline": {
+                                "id": "[format('/subscriptions/{0}/providers/Microsoft.Web/locations/{1}/managedApis/sharepointonline', subscription().subscriptionId, parameters('location'))]",
+                                "connectionId": "[parameters('connections_sharepointonline_externalid')]",
+                                "connectionName": "sharepointonline"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    ]
+}

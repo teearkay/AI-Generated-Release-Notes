@@ -1,0 +1,13 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "_comment": "Most Azure authentication settings (subscription, tenant, user) are automatically extracted from Azure CLI",
+    "AzureWebJobsStorage__accountName": "releasenotesgeneratorapp",
+    "AzureWebJobsStorage__credential": "managedidentity",
+    "FUNCTIONS_WORKER_RUNTIME": "python",
+    "AzureWebJobsFeatureFlags": "EnableWorkerIndexing",
+    "ENDPOINT_URL": "https://icm-enrichment-openai.openai.azure.com/",
+    "DEPLOYMENT_NAME": "ICM-Enrichment-AI",
+    "SEARCH_ENDPOINT": "https://tkishnani-search.search.windows.net"
+  }
+}
